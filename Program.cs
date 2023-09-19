@@ -11,6 +11,7 @@ namespace BancodeDados
         static void Main(string[] args)
         {
             Console.WriteLine("hello kitty");
+            Console.WriteLine("Ola");
         }
     }
 }
