@@ -10,7 +10,7 @@ namespace BancodeDados
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("helo wolrd");
+            Console.WriteLine("hello kitty");
         }
     }
 }
