@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 
 [Serializable]
 class Item
@@ -64,6 +67,39 @@ class SimpleDatabase
             Console.WriteLine("Item not found");
         }
     }
+    public void SaveToFile(string fileName)
+    {
+        try
+        {
+            using (FileStream fileStream = new FileStream(fileName, FileMode.Create))
+            {
+                IFormatter formatter = new BinaryFormatter();
+                formatter.Serialize(fileStream, items);
+            }
+            Console.WriteLine("Database saved to file: " + fileName);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error saving database to file: " + ex.Message);
+        }
+    }
+
+    public void LoadFromFile(string fileName)
+    {
+        try
+        {
+            using (FileStream fileStream = new FileStream(fileName, FileMode.Open))
+            {
+                IFormatter formatter = new BinaryFormatter();
+                items = (List<Item>)formatter.Deserialize(fileStream);
+            }
+            Console.WriteLine("Database loaded from file: " + fileName);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error loading database from file: " + ex.Message);
+        }
+    }
 }
 class Program
 {
@@ -120,7 +156,21 @@ class Program
                     }
                     break;
 
-                
+                case "save":
+                    if (tokens.Length == 2)
+                    {
+                        string fileName = tokens[1];
+                        database.SaveToFile(fileName);
+                    }
+                    break;
+
+                case "load":
+                    if (tokens.Length == 2)
+                    {
+                        string fileName = tokens[1];
+                        database.LoadFromFile(fileName);
+                    }
+                    break;
 
                 default:
                     Console.WriteLine("Invalid command");
