@@ -1,9 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Collections.Generic;
+using System.Threading;
 
 [Serializable]
 class Item
@@ -15,42 +16,56 @@ class Item
 class DatabaseServer
 {
     private static List<Item> items = new List<Item>();
+    private static readonly object lockObject = new object();
 
     static void Main()
     {
-        // Criando um servidor de Named Pipe com o nome "DatabasePipe"
         using (NamedPipeServerStream pipeServer = new NamedPipeServerStream("DatabasePipe", PipeDirection.InOut))
         {
             Console.WriteLine("Waiting for connection from client...");
 
-            // Aguardando a conexão do cliente
-            pipeServer.WaitForConnection();
+            // Utilizando um ThreadPool para suportar processamento concorrente
+            ThreadPool.QueueUserWorkItem(_ => ProcessClientRequests(pipeServer));
 
-            Console.WriteLine("Client connected.");
+            Console.ReadLine(); // Aguardando a tecla Enter para encerrar o servidor
+        }
+    }
 
-            try
+    private static void ProcessClientRequests(NamedPipeServerStream pipeServer)
+    {
+        try
+        {
+            while (true)
             {
-                while (true)
-                {
-                    // Deserializando a solicitação recebida do cliente
-                    BinaryFormatter formatter = new BinaryFormatter();
-                    object requestData = formatter.Deserialize(pipeServer);
+                pipeServer.WaitForConnection();
+                Console.WriteLine("Client connected.");
 
-                    if (requestData is Request)
+                // Deserializando a solicitação recebida do cliente
+                BinaryFormatter formatter = new BinaryFormatter();
+                object requestData = formatter.Deserialize(pipeServer);
+
+                if (requestData is Request)
+                {
+                    var request = (Request)requestData;
+
+                    // Processando a solicitação dentro de um lock para garantir a consistência dos dados
+                    lock (lockObject)
                     {
-                        var request = (Request)requestData;
-                        ProcessRequest(request); // Processando a solicitação recebida
+                        ProcessRequest(request);
                     }
                 }
+
+                pipeServer.Disconnect(); // Desconectando após processar a solicitação
             }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-            }
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
         }
     }
 
     // Método para processar diferentes tipos de solicitações
+
     private static void ProcessRequest(Request request)
     {
         switch (request.Command)
@@ -81,6 +96,7 @@ class DatabaseServer
 
     // Métodos para realizar operações no banco de dados
     // ... (Métodos Insert, Remove, Update, Search, SaveToFile, LoadFromFile)
+
     private static void Insert(int tag, string value)
     {
         var newItem = new Item { Tag = tag, Value = value };
@@ -165,6 +181,7 @@ class DatabaseServer
 }
 
 // Classe que representa uma solicitação do cliente para o servidor
+
 [Serializable]
 public class Request
 {
@@ -175,6 +192,7 @@ public class Request
 }
 
 // Enumeração que define os diferentes tipos de comandos suportados
+
 public enum CommandType
 {
     Insert,

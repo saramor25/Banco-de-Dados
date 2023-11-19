@@ -10,12 +10,10 @@ class DatabaseClient
         Console.WriteLine("Database Client");
 
         try
-        {    // Criando um cliente de Named Pipe com o nome "DatabasePipe"
+        {
             using (NamedPipeClientStream pipeClient = new NamedPipeClientStream(".", "DatabasePipe", PipeDirection.InOut))
             {
-                Console.WriteLine("Attempting to connect to the server...");
                 pipeClient.Connect();
-
                 Console.WriteLine("Connected to the server.");
 
                 while (true)
@@ -33,6 +31,8 @@ class DatabaseClient
                     if (request != null)
                     {
                         SendRequest(pipeClient, request);   // Enviando solicitação para o servidor
+                        // Aguardando um curto período antes de ler a próxima entrada do usuário
+                        System.Threading.Thread.Sleep(100);
                     }
                     else
                     {
@@ -46,6 +46,7 @@ class DatabaseClient
             Console.WriteLine($"Error: {ex.Message}");
         }
     }
+
     // Método para analisar a entrada do usuário e criar uma solicitação correspondente
     private static Request ParseInput(string input)
     {
