@@ -1,10 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipes;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Collections.Generic;
 
-// A classe representa um item no banco de dados.
 [Serializable]
 class Item
 {
@@ -12,27 +12,83 @@ class Item
     public string Value { get; set; }
 }
 
-// A classe representa um banco de dados simples.
-class SimpleDatabase
+class DatabaseServer
 {
-    private List<Item> items;
+    private static List<Item> items = new List<Item>();
 
-    // Construtor que inicializa a lista de itens.
-    public SimpleDatabase()
+    static void Main()
     {
-        items = new List<Item>();
+        // Criando um servidor de Named Pipe com o nome "DatabasePipe"
+        using (NamedPipeServerStream pipeServer = new NamedPipeServerStream("DatabasePipe", PipeDirection.InOut))
+        {
+            Console.WriteLine("Waiting for connection from client...");
+
+            // Aguardando a conexão do cliente
+            pipeServer.WaitForConnection();
+
+            Console.WriteLine("Client connected.");
+
+            try
+            {
+                while (true)
+                {
+                    // Deserializando a solicitação recebida do cliente
+                    BinaryFormatter formatter = new BinaryFormatter();
+                    object requestData = formatter.Deserialize(pipeServer);
+
+                    if (requestData is Request)
+                    {
+                        var request = (Request)requestData;
+                        ProcessRequest(request); // Processando a solicitação recebida
+                    }
+                }
+            }
+            catch (IOException ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
     }
 
-    // Método para inserir um novo item no banco de dados.
-    public void Insert(int tag, string value)
+    // Método para processar diferentes tipos de solicitações
+    private static void ProcessRequest(Request request)
+    {
+        switch (request.Command)
+        {
+            case CommandType.Insert:
+                Insert(request.Tag, request.Value);
+                break;
+            case CommandType.Remove:
+                Remove(request.Tag);
+                break;
+            case CommandType.Update:
+                Update(request.Tag, request.Value);
+                break;
+            case CommandType.Search:
+                Search(request.Tag);
+                break;
+            case CommandType.SaveToFile:
+                SaveToFile(request.FileName);
+                break;
+            case CommandType.LoadFromFile:
+                LoadFromFile(request.FileName);
+                break;
+            default:
+                Console.WriteLine("Invalid command");
+                break;
+        }
+    }
+
+    // Métodos para realizar operações no banco de dados
+    // ... (Métodos Insert, Remove, Update, Search, SaveToFile, LoadFromFile)
+    private static void Insert(int tag, string value)
     {
         var newItem = new Item { Tag = tag, Value = value };
         items.Add(newItem);
         Console.WriteLine($"Inserted: {newItem.Tag}, {newItem.Value}");
     }
 
-    // Método para remover um item do banco de dados com base na tag.
-    public void Remove(int tag)
+    private static void Remove(int tag)
     {
         var itemToRemove = items.Find(item => item.Tag == tag);
         if (itemToRemove != null)
@@ -46,8 +102,7 @@ class SimpleDatabase
         }
     }
 
-    // Método para atualizar o valor de um item no banco de dados com base na tag.
-    public void Update(int tag, string newValue)
+    private static void Update(int tag, string newValue)
     {
         var itemToUpdate = items.Find(item => item.Tag == tag);
         if (itemToUpdate != null)
@@ -61,8 +116,7 @@ class SimpleDatabase
         }
     }
 
-    // Método para buscar um item no banco de dados com base na tag e imprimir o valor.
-    public void Search(int tag)
+    private static void Search(int tag)
     {
         var itemToSearch = items.Find(item => item.Tag == tag);
         if (itemToSearch != null)
@@ -75,8 +129,7 @@ class SimpleDatabase
         }
     }
 
-    // Método para salvar a lista de itens em um arquivo usando serialização.
-    public void SaveToFile(string fileName)
+    private static void SaveToFile(string fileName)
     {
         try
         {
@@ -87,18 +140,13 @@ class SimpleDatabase
             }
             Console.WriteLine($"Database saved to file: {fileName}");
         }
-        catch (IOException ex)
+        catch (Exception ex)
         {
             Console.WriteLine($"Error saving database to file: {ex.Message}");
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
-        }
     }
 
-    // Método para carregar a lista de itens de um arquivo usando desserialização.
-    public void LoadFromFile(string fileName)
+    private static void LoadFromFile(string fileName)
     {
         try
         {
@@ -109,132 +157,30 @@ class SimpleDatabase
             }
             Console.WriteLine($"Database loaded from file: {fileName}");
         }
-        catch (FileNotFoundException)
-        {
-            Console.WriteLine($"File not found: {fileName}");
-        }
-        catch (IOException ex)
-        {
-            Console.WriteLine($"Error loading database from file: {ex.Message}");
-        }
         catch (Exception ex)
         {
-            Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+            Console.WriteLine($"Error loading database from file: {ex.Message}");
         }
     }
 }
 
-// Classe principal que contém o método Main.
-class Program
+// Classe que representa uma solicitação do cliente para o servidor
+[Serializable]
+public class Request
 {
-    static void Main()
-    {
-        SimpleDatabase database = new SimpleDatabase();
+    public CommandType Command { get; set; }
+    public int Tag { get; set; }
+    public string Value { get; set; }
+    public string FileName { get; set; }
+}
 
-        while (true)
-        {
-            Console.Write("Enter command (insert, remove, update, search, save, load, quit): ");
-            string input = Console.ReadLine()?.ToLower();
-
-            if (input == "quit")
-            {
-                break;
-            }
-
-            string[] tokens = input?.Split(' ');
-            string command = tokens?[0];
-
-            try
-            {
-                switch (command)
-                {
-                    case "insert":
-                        if (tokens.Length >= 3)
-                        {
-                            int tag = int.Parse(tokens[1]);
-                            string value = string.Join(" ", tokens, 2, tokens.Length - 2);
-                            database.Insert(tag, value);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: insert <tag> <value>");
-                        }
-                        break;
-
-                    case "remove":
-                        if (tokens.Length == 2)
-                        {
-                            int tag = int.Parse(tokens[1]);
-                            database.Remove(tag);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: remove <tag>");
-                        }
-                        break;
-
-                    case "update":
-                        if (tokens.Length >= 3)
-                        {
-                            int tag = int.Parse(tokens[1]);
-                            string value = string.Join(" ", tokens, 2, tokens.Length - 2);
-                            database.Update(tag, value);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: update <tag> <value>");
-                        }
-                        break;
-
-                    case "search":
-                        if (tokens.Length == 2)
-                        {
-                            int tag = int.Parse(tokens[1]);
-                            database.Search(tag);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: search <tag>");
-                        }
-                        break;
-
-                    case "save":
-                        if (tokens.Length == 2)
-                        {
-                            string fileName = tokens[1];
-                            database.SaveToFile(fileName);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: save <filename>");
-                        }
-                        break;
-
-                    case "load":
-                        if (tokens.Length == 2)
-                        {
-                            string fileName = tokens[1];
-                            database.LoadFromFile(fileName);
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid command. Format: load <filename>");
-                        }
-                        break;
-
-                    default:
-                        Console.WriteLine("Invalid command");
-                        break;
-                }
-            }
-            catch (FormatException)
-            {
-                Console.WriteLine("Invalid format. Please enter a valid number.");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"An error occurred: {ex.Message}");
-            }
-        }
-    }
+// Enumeração que define os diferentes tipos de comandos suportados
+public enum CommandType
+{
+    Insert,
+    Remove,
+    Update,
+    Search,
+    SaveToFile,
+    LoadFromFile
 }
