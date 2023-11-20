@@ -16,15 +16,13 @@ class Item
 class DatabaseServer
 {
     private static List<Item> items = new List<Item>();
-    private static readonly object lockObject = new object();
+    private readonly object lockObject = new object();
 
-    static void Main()
-    {
+        public void Start(){
         using (NamedPipeServerStream pipeServer = new NamedPipeServerStream("DatabasePipe", PipeDirection.InOut))
         {
             Console.WriteLine("Waiting for connection from client...");
 
-            // Utilizando um ThreadPool para suportar processamento concorrente
             ThreadPool.QueueUserWorkItem(_ => ProcessClientRequests(pipeServer));
 
             Console.ReadLine(); // Aguardando a tecla Enter para encerrar o servidor
@@ -51,7 +49,7 @@ class DatabaseServer
                     // Processando a solicitação dentro de um lock para garantir a consistência dos dados
                     lock (lockObject)
                     {
-                        ProcessRequest(request);
+                        ProcessRequest(request,pipeServer);
                     }
                 }
 
@@ -62,11 +60,18 @@ class DatabaseServer
         {
             Console.WriteLine($"Error: {ex.Message}");
         }
+        catch (SerializationException ex)
+        {
+            Console.WriteLine($"Error deserializing request: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unexpected error: {ex.Message}");
+        }
     }
 
     // Método para processar diferentes tipos de solicitações
-
-    private static void ProcessRequest(Request request)
+     private void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
     {
         switch (request.Command)
         {
@@ -89,36 +94,24 @@ class DatabaseServer
                 LoadFromFile(request.FileName);
                 break;
             default:
-                 Console.WriteLine("Invalid command");
-                SendResponse("Invalid command");
+                Console.WriteLine("Invalid command");
+                SendResponse(pipeServer, "Invalid command");
                 break;
         }
     }
-    // Método para enviar uma resposta para o cliente
-    private static void SendResponse(string response)
-    {
-        try
-        {
-            BinaryFormatter formatter = new BinaryFormatter();
-            formatter.Serialize(pipeServer, response);
-        }
-        catch (IOException ex)
-        {
-            Console.WriteLine($"Error sending response: {ex.Message}");
-        }
-    }
+
 
     // Métodos para realizar operações no banco de dados
     // ... (Métodos Insert, Remove, Update, Search, SaveToFile, LoadFromFile)
 
-    private static void Insert(int tag, string value)
+    private  void Insert(int tag, string value)
     {
         var newItem = new Item { Tag = tag, Value = value };
         items.Add(newItem);
         Console.WriteLine($"Inserted: {newItem.Tag}, {newItem.Value}");
     }
 
-    private static void Remove(int tag)
+    private void Remove(int tag)
     {
         var itemToRemove = items.Find(item => item.Tag == tag);
         if (itemToRemove != null)
@@ -132,7 +125,7 @@ class DatabaseServer
         }
     }
 
-    private static void Update(int tag, string newValue)
+    private void Update(int tag, string newValue)
     {
         var itemToUpdate = items.Find(item => item.Tag == tag);
         if (itemToUpdate != null)
@@ -146,7 +139,7 @@ class DatabaseServer
         }
     }
 
-    private static void Search(int tag)
+    private void Search(int tag)
     {
         var itemToSearch = items.Find(item => item.Tag == tag);
         if (itemToSearch != null)
@@ -159,7 +152,7 @@ class DatabaseServer
         }
     }
 
-    private static void SaveToFile(string fileName)
+    private  void SaveToFile(string fileName)
     {
         try
         {
@@ -176,7 +169,7 @@ class DatabaseServer
         }
     }
 
-    private static void LoadFromFile(string fileName)
+    private void LoadFromFile(string fileName)
     {
         try
         {
@@ -192,10 +185,22 @@ class DatabaseServer
             Console.WriteLine($"Error loading database from file: {ex.Message}");
         }
     }
+     // Método para enviar uma resposta para o cliente
+    private void SendResponse(NamedPipeServerStream pipeServer, string response)
+    {
+        try
+        {
+            BinaryFormatter formatter = new BinaryFormatter();
+            formatter.Serialize(pipeServer, response);
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine($"Error sending response: {ex.Message}");
+        }
+    }
 }
 
 // Classe que representa uma solicitação do cliente para o servidor
-
 [Serializable]
 public class Request
 {

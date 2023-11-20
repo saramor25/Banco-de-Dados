@@ -44,6 +44,14 @@ class DatabaseClient
         {
             Console.WriteLine($"Error: {ex.Message}");
         }
+        catch (SerializationException ex)
+        {
+            Console.WriteLine($"Error serializing/deserializing data: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unexpected error: {ex.Message}");
+        }
     }
 
 
