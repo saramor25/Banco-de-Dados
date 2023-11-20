@@ -89,8 +89,22 @@ class DatabaseServer
                 LoadFromFile(request.FileName);
                 break;
             default:
-                Console.WriteLine("Invalid command");
+                 Console.WriteLine("Invalid command");
+                SendResponse("Invalid command");
                 break;
+        }
+    }
+    // Método para enviar uma resposta para o cliente
+    private static void SendResponse(string response)
+    {
+        try
+        {
+            BinaryFormatter formatter = new BinaryFormatter();
+            formatter.Serialize(pipeServer, response);
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine($"Error sending response: {ex.Message}");
         }
     }
 
