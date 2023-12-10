@@ -11,6 +11,8 @@ class Item
 {
     public int Tag { get; set; }
     public string Value { get; set; }
+    public int Age { get; set; } // Para Aging
+    public int AccessCount { get; set; } // Para LRU
 }
 
 // Interface para as estratégias
@@ -19,15 +21,15 @@ interface IStrategy
     void ProcessRequest(Request request, NamedPipeServerStream pipeServer);
 }
 
-// Estratégia FIFO (PersonFIFO)
-class PersonFIFO : IStrategy
+// Estratégia FIFO (FIFO)
+class FIFO : IStrategy
 {
     private const int MaxRecords = 10;
     private Queue<Item> fifoBuffer = new Queue<Item>();
 
     public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
     {
-        // Implementação FIFO - Saulo
+        // Implementação FIFO 
         if (fifoBuffer.Count >= MaxRecords)
         {
             Item removedItem = fifoBuffer.Dequeue();
@@ -36,21 +38,59 @@ class PersonFIFO : IStrategy
         fifoBuffer.Enqueue(new Item { Tag = request.Tag, Value = request.Value });
     }
 }
+//Estrategia Aging
+class Aging : IStrategy
+{
+    private const int AgingPeriod = 5; // Período para decrementar valores de envelhecimento
+    private int agingCounter = 0;
+
+    public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
+    {
+        // Implementação Aging 
+        agingCounter++;
+        if (agingCounter % AgingPeriod == 0)
+        {
+            foreach (var item in DatabaseServer.items)
+            {
+                item.Age--; // Decrementa o valor de envelhecimento
+            }
+            Console.WriteLine("Aging: Decremented aging values");
+        }
+    }
+}
+
+// Estratégia LRU 
+class LRU : IStrategy
+{
+    private int accessCounter = 0;
+
+    public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
+    {
+        // Implementação LRU 
+        accessCounter++;
+        var accessedItem = DatabaseServer.items.Find(item => item.Tag == request.Tag);
+        if (accessedItem != null)
+        {
+            accessedItem.AccessCount = accessCounter;
+            Console.WriteLine($"LRU: Updated access count for item: {accessedItem.Tag}, {accessedItem.Value}");
+        }
+    }
+}
 
 // Fábrica de estratégias
 static class StrategyFactory
 {
     public static IStrategy CreateStrategy(StrategyType strategyType)
     {
-        // Todos devem deixar esse código como está
+        
         switch (strategyType)
         {
             case StrategyType.FIFO:
-                return new PersonFIFO();
+                return new FIFO();
             case StrategyType.Aging:
-                return new PersonAging();
+                return new Aging();
             case StrategyType.LRU:
-                return new PersonLRU();
+                return new LRU();
             default:
                 throw new ArgumentException("Invalid strategy type");
         }
@@ -154,7 +194,7 @@ class DatabaseServer
 
 
     // Métodos para realizar operações no banco de dados
-    // ... (Métodos Insert, Remove, Update, Search, SaveToFile, LoadFromFile)
+    // Métodos Insert, Remove, Update, Search, SaveToFile, LoadFromFile
 
     private  void Insert(int tag, string value)
     {
