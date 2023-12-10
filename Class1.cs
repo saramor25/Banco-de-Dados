@@ -54,7 +54,6 @@ class DatabaseClient
         }
     }
 
-
     // Método para analisar a entrada do usuário e criar uma solicitação correspondente
     private static Request ParseInput(string input)
     {
@@ -73,35 +72,59 @@ class DatabaseClient
                     {
                         request.Tag = int.Parse(tokens[1]);
                         request.Value = string.Join(" ", tokens, 2, tokens.Length - 2);
-                        return request;
+                        break;
                     }
-                    break;
+                    else
+                    {
+                        Console.WriteLine("Invalid command format");
+                        return null;
+                    }
 
                 case CommandType.Remove:
                 case CommandType.Search:
                     if (tokens.Length == 2)
                     {
                         request.Tag = int.Parse(tokens[1]);
-                        return request;
+                        break;
                     }
-                    break;
+                    else
+                    {
+                        Console.WriteLine("Invalid command format");
+                        return null;
+                    }
 
                 case CommandType.SaveToFile:
                 case CommandType.LoadFromFile:
                     if (tokens.Length == 2)
                     {
                         request.FileName = tokens[1];
-                        return request;
+                        break;
                     }
-                    break;
+                    else
+                    {
+                        Console.WriteLine("Invalid command format");
+                        return null;
+                    }
             }
 
-            return request; // Adicionado para tratar o caso padrão
+            // Adicionado para tratar o caso padrão
+            Console.Write("Enter strategy (FIFO, Aging, LRU): ");
+            string strategyInput = Console.ReadLine()?.ToUpper();
+
+            if (Enum.TryParse(strategyInput, out StrategyType strategyType))
+            {
+                request.StrategyType = strategyType;
+                return request;
+            }
+            else
+            {
+                Console.WriteLine("Invalid strategy");
+                return null;
+            }
         }
 
         return null;
     }
-
 
     // Método para enviar a solicitação para o servidor
     private static void SendRequest(NamedPipeClientStream pipeClient, Request request)
@@ -116,6 +139,7 @@ class DatabaseClient
             Console.WriteLine($"Error sending request: {ex.Message}");
         }
     }
+
     // Método para receber e exibir a resposta do servidor
     private static void ReceiveResponse(NamedPipeClientStream pipeClient)
     {
@@ -133,5 +157,13 @@ class DatabaseClient
         {
             Console.WriteLine($"Error receiving response: {ex.Message}");
         }
-   }
+    }
+}
+
+// Enumeração para os tipos de estratégias
+public enum StrategyType
+{
+    FIFO,
+    Aging,
+    LRU
 }

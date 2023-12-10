@@ -21,7 +21,7 @@ interface IStrategy
     void ProcessRequest(Request request, NamedPipeServerStream pipeServer);
 }
 
-// Estratégia FIFO (FIFO)
+// Estratégia FIFO 
 class FIFO : IStrategy
 {
     private const int MaxRecords = 10;
@@ -29,7 +29,7 @@ class FIFO : IStrategy
 
     public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
     {
-        // Implementação FIFO 
+        // Implementação FIFO
         if (fifoBuffer.Count >= MaxRecords)
         {
             Item removedItem = fifoBuffer.Dequeue();
@@ -38,7 +38,8 @@ class FIFO : IStrategy
         fifoBuffer.Enqueue(new Item { Tag = request.Tag, Value = request.Value });
     }
 }
-//Estrategia Aging
+
+// Estratégia Aging
 class Aging : IStrategy
 {
     private const int AgingPeriod = 5; // Período para decrementar valores de envelhecimento
@@ -46,33 +47,39 @@ class Aging : IStrategy
 
     public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
     {
-        // Implementação Aging 
+        // Implementação Aging
         agingCounter++;
         if (agingCounter % AgingPeriod == 0)
         {
-            foreach (var item in DatabaseServer.items)
+            lock (DatabaseServer.lockObject)
             {
-                item.Age--; // Decrementa o valor de envelhecimento
+                foreach (var item in DatabaseServer.items)
+                {
+                    item.Age--; // Decrementa o valor de envelhecimento
+                }
+                Console.WriteLine("Aging: Decremented aging values");
             }
-            Console.WriteLine("Aging: Decremented aging values");
         }
     }
 }
 
-// Estratégia LRU 
+//Estratégia LRU 
 class LRU : IStrategy
 {
     private int accessCounter = 0;
 
     public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
     {
-        // Implementação LRU 
-        accessCounter++;
-        var accessedItem = DatabaseServer.items.Find(item => item.Tag == request.Tag);
-        if (accessedItem != null)
+        // Implementação LRU
+        lock (DatabaseServer.lockObject)
         {
-            accessedItem.AccessCount = accessCounter;
-            Console.WriteLine($"LRU: Updated access count for item: {accessedItem.Tag}, {accessedItem.Value}");
+            accessCounter++;
+            var accessedItem = DatabaseServer.items.Find(item => item.Tag == request.Tag);
+            if (accessedItem != null)
+            {
+                accessedItem.AccessCount = accessCounter;
+                Console.WriteLine($"LRU: Updated access count for item: {accessedItem.Tag}, {accessedItem.Value}");
+            }
         }
     }
 }
@@ -82,7 +89,6 @@ static class StrategyFactory
 {
     public static IStrategy CreateStrategy(StrategyType strategyType)
     {
-        
         switch (strategyType)
         {
             case StrategyType.FIFO:
@@ -105,15 +111,28 @@ public enum StrategyType
     LRU
 }
 
+// Classe que representa uma solicitação do cliente para o servidor
+[Serializable]
+public class Request
+{
+    public CommandType Command { get; set; }
+    public int Tag { get; set; }
+    public string Value { get; set; }
+    public string FileName { get; set; }
+    public StrategyType StrategyType { get; set; } // Adicionado para especificar a estratégia
+}
+
 class DatabaseServer
 {
-    private static List<Item> items = new List<Item>();
-    private readonly object lockObject = new object();
+    public static List<Item> items = new List<Item>();
+    public static object lockObject = new object();
+    private IStrategy strategy;
 
-        public void Start(){
+    public void Start()
+    {
         using (NamedPipeServerStream pipeServer = new NamedPipeServerStream("DatabasePipe", PipeDirection.InOut))
         {
-            Console.WriteLine("Waiting for connection from client...");
+            Console.WriteLine("Waiting for connection from the client...");
 
             ThreadPool.QueueUserWorkItem(_ => ProcessClientRequests(pipeServer));
 
@@ -121,7 +140,7 @@ class DatabaseServer
         }
     }
 
-    private static void ProcessClientRequests(NamedPipeServerStream pipeServer)
+    private void ProcessClientRequests(NamedPipeServerStream pipeServer)
     {
         try
         {
@@ -130,7 +149,6 @@ class DatabaseServer
                 pipeServer.WaitForConnection();
                 Console.WriteLine("Client connected.");
 
-                // Deserializando a solicitação recebida do cliente
                 BinaryFormatter formatter = new BinaryFormatter();
                 object requestData = formatter.Deserialize(pipeServer);
 
@@ -138,14 +156,15 @@ class DatabaseServer
                 {
                     var request = (Request)requestData;
 
-                    // Processando a solicitação dentro de um lock para garantir a consistência dos dados
                     lock (lockObject)
                     {
-                        ProcessRequest(request,pipeServer);
+                        strategy = StrategyFactory.CreateStrategy(request.StrategyType);
+
+                        strategy.ProcessRequest(request, pipeServer);
                     }
                 }
 
-                pipeServer.Disconnect(); // Desconectando após processar a solicitação
+                pipeServer.Disconnect();
             }
         }
         catch (IOException ex)
