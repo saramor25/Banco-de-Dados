@@ -31,8 +31,7 @@ class DatabaseClient
                     if (request != null)
                     {
                         SendRequest(pipeClient, request);   // Enviando solicitação para o servidor
-                        // Aguardando um curto período antes de ler a próxima entrada do usuário
-                        System.Threading.Thread.Sleep(100);
+                        ReceiveResponse(pipeClient);        // Recebendo e exibindo a resposta do servidor
                     }
                     else
                     {
@@ -45,7 +44,16 @@ class DatabaseClient
         {
             Console.WriteLine($"Error: {ex.Message}");
         }
+        catch (SerializationException ex)
+        {
+            Console.WriteLine($"Error serializing/deserializing data: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unexpected error: {ex.Message}");
+        }
     }
+
 
     // Método para analisar a entrada do usuário e criar uma solicitação correspondente
     private static Request ParseInput(string input)
@@ -108,4 +116,22 @@ class DatabaseClient
             Console.WriteLine($"Error sending request: {ex.Message}");
         }
     }
+    // Método para receber e exibir a resposta do servidor
+    private static void ReceiveResponse(NamedPipeClientStream pipeClient)
+    {
+        try
+        {
+            BinaryFormatter formatter = new BinaryFormatter();
+            object responseData = formatter.Deserialize(pipeClient);
+
+            if (responseData is string)
+            {
+                Console.WriteLine($"Server Response: {responseData}");
+            }
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine($"Error receiving response: {ex.Message}");
+        }
+   }
 }
