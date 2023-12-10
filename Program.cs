@@ -13,6 +13,58 @@ class Item
     public string Value { get; set; }
 }
 
+// Interface para as estratégias
+interface IStrategy
+{
+    void ProcessRequest(Request request, NamedPipeServerStream pipeServer);
+}
+
+// Estratégia FIFO (PersonFIFO)
+class PersonFIFO : IStrategy
+{
+    private const int MaxRecords = 10;
+    private Queue<Item> fifoBuffer = new Queue<Item>();
+
+    public void ProcessRequest(Request request, NamedPipeServerStream pipeServer)
+    {
+        // Implementação FIFO - Saulo
+        if (fifoBuffer.Count >= MaxRecords)
+        {
+            Item removedItem = fifoBuffer.Dequeue();
+            Console.WriteLine($"FIFO: Removed oldest item: {removedItem.Tag}, {removedItem.Value}");
+        }
+        fifoBuffer.Enqueue(new Item { Tag = request.Tag, Value = request.Value });
+    }
+}
+
+// Fábrica de estratégias
+static class StrategyFactory
+{
+    public static IStrategy CreateStrategy(StrategyType strategyType)
+    {
+        // Todos devem deixar esse código como está
+        switch (strategyType)
+        {
+            case StrategyType.FIFO:
+                return new PersonFIFO();
+            case StrategyType.Aging:
+                return new PersonAging();
+            case StrategyType.LRU:
+                return new PersonLRU();
+            default:
+                throw new ArgumentException("Invalid strategy type");
+        }
+    }
+}
+
+// Enumeração para os tipos de estratégias
+public enum StrategyType
+{
+    FIFO,
+    Aging,
+    LRU
+}
+
 class DatabaseServer
 {
     private static List<Item> items = new List<Item>();
@@ -189,6 +241,7 @@ public class Request
     public int Tag { get; set; }
     public string Value { get; set; }
     public string FileName { get; set; }
+    public StrategyType StrategyType { get; set; } // Adicionado para especificar a estratégia
 }
 
 // Enumeração que define os diferentes tipos de comandos suportados
