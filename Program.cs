@@ -9,6 +9,7 @@ using System.Threading;
 [Serializable]
 class Item
 {
+    // Propriedades
     public int Tag { get; set; }
     public string Value { get; set; }
     public int Age { get; set; } // Para Aging
@@ -115,15 +116,18 @@ public enum StrategyType
 [Serializable]
 public class Request
 {
+    // Propriedades
     public CommandType Command { get; set; }
     public int Tag { get; set; }
     public string Value { get; set; }
     public string FileName { get; set; }
+    // Construtor ou método de inicialização
     public StrategyType StrategyType { get; set; } // Adicionado para especificar a estratégia
 }
 
 class DatabaseServer
 {
+    // Campos e propriedades
     public static List<Item> items = new List<Item>();
     public static object lockObject = new object();
     private IStrategy strategy;
@@ -134,7 +138,7 @@ class DatabaseServer
         {
             Console.WriteLine("Waiting for connection from the client...");
 
-            ThreadPool.QueueUserWorkItem(_ => ProcessClientRequests(pipeServer));
+             Task.Run(() => ProcessClientRequests(pipeServer));
 
             Console.ReadLine(); // Aguardando a tecla Enter para encerrar o servidor
         }
